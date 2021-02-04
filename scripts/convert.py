@@ -29,6 +29,10 @@ POSITIONAL_ARGUMENTS = [
     ['infile', str, 'path to input csv file'],
     ['outfile', str, 'path to output json file']
 ]
+PLACE_TYPES = {
+    'tower (wall)': 'tower-wall',
+    'city gate': 'city-gate'
+}
 
 
 def read_ydea(fn: str):
@@ -40,7 +44,9 @@ def make_pjson(in_data):
     places = []
     for i, feature in enumerate(in_data):
         place = {
-            'title': feature['Title']
+            'title': feature['Title'],
+            'description': feature['Description'],
+            'placeType': PLACE_TYPES[feature['Place type']]
         }
         places.append(place)
     return places
