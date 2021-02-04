@@ -5,9 +5,10 @@ Convert YDEA data for Pleiades
 """
 
 from airtight.cli import configure_commandline
-import csv
+import encoded_csv
 import json
 import logging
+from pprint import pprint
 import shapely
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,29 @@ OPTIONAL_ARGUMENTS = [
 ]
 POSITIONAL_ARGUMENTS = [
     # each row is a list with 3 elements: name, type, help
+    ['infile', str, 'path to input csv file'],
+    ['outfile', str, 'path to output json file']
 ]
+
+
+def read_ydea(fn: str):
+    r = encoded_csv.get_csv(fn)
+    return r['content']
+
+
+def make_pjson(in_data):
+    places = []
+    for i, feature in enumerate(in_data):
+        place = {
+            'title': feature['Title']
+        }
+        places.append(place)
+    return places
+
+
+def write_pjson(pjson, fn):
+    with open(fn, 'w', encoding='utf-8') as f:
+        json.dump(pjson, f)
 
 
 def main(**kwargs):
@@ -33,6 +56,14 @@ def main(**kwargs):
     main function
     """
     # logger = logging.getLogger(sys._getframe().f_code.co_name)
+
+    # read CSV
+    in_data = read_ydea(kwargs['infile'])
+
+    pjson = make_pjson(in_data)
+
+    write_pjson(pjson, kwargs['outfile'])
+
     pass
 
 
