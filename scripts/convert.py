@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Python 3 script template (changeme)
+Convert YDEA data for Pleiades
 """
 
-import better_exceptions
 from airtight.cli import configure_commandline
+import csv
+import json
 import logging
+import shapely
 
 logger = logging.getLogger(__name__)
 
