@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from Acquisition import aq_parent
 import argparse
 import json
@@ -6,6 +8,7 @@ from Products.Archetypes.exceptions import ReferenceException
 from Products.CMFCore.utils import getToolByName
 from Products.PleiadesEntity.content.interfaces import IWork
 from Products.validation import validation
+import sys
 import transaction
 
 if __name__ == '__main__':
@@ -38,7 +41,8 @@ if __name__ == '__main__':
 
     loaded_ids = []
     done = 0
-    print('Loading {} new places '.format(len(new_places)), end='')
+    print('Loading {} new places '.format(len(new_places)))
+    sys.stdout.flush()
     for place in new_places:
         content_type = 'Place'
         path = 'places'
@@ -50,6 +54,7 @@ if __name__ == '__main__':
         for k, v in place.items():
             if k in ['names', 'locations']:
                 continue  # until we figure out how to do this
+            
             if k == 'references':
                 key = 'referenceCitations'
             else:
@@ -59,6 +64,7 @@ if __name__ == '__main__':
                 raise RuntimeError(
                     'content.getField() returned None for field '
                     '"{}"'.format(k))
+
             if k == 'title':
                 content.setTitle(v)
             elif k == 'description':
@@ -72,16 +78,18 @@ if __name__ == '__main__':
                 except ReferenceException:
                     print(
                         'Invalid reference on field "{}". Skipping.'.format(k))
+                        
         done += 1
         if done % 10 == 0:
             # save RAM by committing a subtransaction to disk
             transaction.get().commit(True)
             print('.', end='')
+            sys.stdout.flush()
 
     if args.dry_run:
         # abandon everything we've done, leaving the ZODB unchanged
         transaction.abort()
-        print "\nDry run. No changes made in Plone."
+        print('\nDry run. No changes made in Plone.')
     else:
         path_base = 'places/'
         done = 0
@@ -90,13 +98,12 @@ if __name__ == '__main__':
             content = site.restrictedTraverse(path.encode('utf-8'))
             content.reindexObject()
             content.reindexObject(idxs=['modified'])
-            print()
             done += 1
             if done % 10 == 0:
                 transaction.get().commit(True)
         # make all the changes to the database
         transaction.commit()
-        print('\nPlace creation and reindexing complete.')
+        print('\nPlace creation and reindexing complete:')
         for new_id in loaded_ids:
             path = path_base + new_id
             content = site.restrictedTraverse(path.encode('utf-8'))
