@@ -31,17 +31,47 @@ def make_name_id(name):
     return safe_unicode(this_id)
 
 
-def build_names(place_data, plone_context):
+def populate_names(place_data, plone_context):
     names = []
     for name in place_data['names']:
         new_id = make_name_id(name['nameTransliterated'])
-        print('"{}": "{}"'.format(name['nameTransliterated'], new_id))
+        plone_context.invokeFactory('Name', new_id)
+        name_obj = content[new_id]
+
+
+def populate_field(content, k, v):
+    if k == 'references':
+        key = 'referenceCitations'
+    else:
+        key = k
+    field = content.getField(key)
+    if field is None:
+        raise RuntimeError(
+            'content.getField() returned None for field '
+            '"{}"'.format(k))
+
+    if k == 'title':
+        content.setTitle(v)
+    elif k == 'description':
+        content.setDescription(v)
+    elif k == 'references':
+        field.resize(len(v), content)
+        content.setReferenceCitations(v)
+    else:
+        try:
+            field.set(content, v)
+        except ReferenceException:
+            print(
+                'Invalid reference on field "{}". Skipping.'.format(k))
+
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create new Pleiades places.')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         dest='dry_run', help='No changes will be made.')
+    parser.add_argument('--nolist', action='store_true', default=False,
+                        dest='nolist', help='Do not output list of places.')
     parser.add_argument('--workflow', choices=['publish', 'review', 'draft'],
                         default='draft',
                         help='Direct edit, or set as review or draft.')
@@ -79,50 +109,37 @@ if __name__ == '__main__':
         content.invokeFactory(content_type, new_id)
         content = content[new_id]
         for k, v in place.items():
-            if k in ['locations', 'names']:
+            if k in ['locations', 'names', 'connections']:
                 continue  # address these after the place is created
-            
-            if k == 'references':
-                key = 'referenceCitations'
-            else:
-                key = k
-            field = content.getField(key)
-            if field is None:
-                raise RuntimeError(
-                    'content.getField() returned None for field '
-                    '"{}"'.format(k))
-
-            if k == 'title':
-                content.setTitle(v)
-            elif k == 'description':
-                content.setDescription(v)
-            elif k == 'references':
-                field.resize(len(v), content)
-                content.setReferenceCitations(v)
-            else:
-                try:
-                    field.set(content, v)
-                except ReferenceException:
-                    print(
-                        'Invalid reference on field "{}". Skipping.'.format(k))
-
+            populate_field(content, k, v)
         if len(place['names']) > 0:
-            build_names(place, content)
-
+            populate_names(place, content)
         # locations tbd
-
+        # connections tbd
         done += 1
         if done % 10 == 0:
             print('.', end='')
             sys.stdout.flush()
 
+        if not args.dry_run:
+            transaction.commit()
+
+    path_base = 'places/'
+    if not args.nolist:
+        print()
+        for new_id in loaded_ids:
+            path = path_base + new_id
+            content = site.restrictedTraverse(path.encode('utf-8'))
+            print('"{}", "{}"'.format(
+                new_id, content.Title()
+            ))
+    print()
     if args.dry_run:
         # abandon everything we've done, leaving the ZODB unchanged
         transaction.abort()
-        print('\nDry run. No changes made in Plone.')
+        print('Dry run. No changes made in Plone.')
     else:
         print()
-        path_base = 'places/'
         for new_id in loaded_ids:
             path = path_base + new_id
             content = site.restrictedTraverse(path.encode('utf-8'))
@@ -131,13 +148,3 @@ if __name__ == '__main__':
         # make all the changes to the database
         transaction.commit()
         print('Place creation and reindexing complete:')
-    for new_id in loaded_ids:
-        path = path_base + new_id
-        content = site.restrictedTraverse(path.encode('utf-8'))
-        print('"{}", "{}"'.format(
-            new_id, content.Title()
-        ))
-
-
-
-
