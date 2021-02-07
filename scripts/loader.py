@@ -6,10 +6,37 @@ import json
 from pleiades.dump import getSite, spoofRequest
 from Products.Archetypes.exceptions import ReferenceException
 from Products.CMFCore.utils import getToolByName
+from Products.CMFPlone.utils import safe_unicode
 from Products.PleiadesEntity.content.interfaces import IWork
 from Products.validation import validation
+import re
+import string
 import sys
 import transaction
+
+
+RX_SPACE = re.compile(r'[^\w\s]')
+RX_UNDERSCORE = re.compile(r'\_')
+
+
+def make_name_id(name):
+    this_id = name.split(',')[0].strip()
+    this_id = RX_SPACE.sub('', this_id)
+    this_id = RX_UNDERSCORE.sub('-', this_id)
+    this_id = this_id.lower().strip()
+    this_id = '-'.join(this_id.split())
+    while '--' in this_id:
+        this_id = this_id.replace('--', '-')
+    this_id = this_id.strip('-')
+    return safe_unicode(this_id)
+
+
+def build_names(place_data, plone_context):
+    names = []
+    for name in place_data['names']:
+        new_id = make_name_id(name['nameTransliterated'])
+        print('"{}": "{}"'.format(name['nameTransliterated'], new_id))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create new Pleiades places.')
@@ -52,8 +79,8 @@ if __name__ == '__main__':
         content.invokeFactory(content_type, new_id)
         content = content[new_id]
         for k, v in place.items():
-            if k in ['names', 'locations']:
-                continue  # until we figure out how to do this
+            if k in ['locations', 'names']:
+                continue  # address these after the place is created
             
             if k == 'references':
                 key = 'referenceCitations'
@@ -78,11 +105,14 @@ if __name__ == '__main__':
                 except ReferenceException:
                     print(
                         'Invalid reference on field "{}". Skipping.'.format(k))
-                        
+
+        if len(place['names']) > 0:
+            build_names(place, content)
+
+        # locations tbd
+
         done += 1
         if done % 10 == 0:
-            # save RAM by committing a subtransaction to disk
-            transaction.get().commit(True)
             print('.', end='')
             sys.stdout.flush()
 
@@ -91,25 +121,22 @@ if __name__ == '__main__':
         transaction.abort()
         print('\nDry run. No changes made in Plone.')
     else:
+        print()
         path_base = 'places/'
-        done = 0
         for new_id in loaded_ids:
             path = path_base + new_id
             content = site.restrictedTraverse(path.encode('utf-8'))
             content.reindexObject()
             content.reindexObject(idxs=['modified'])
-            done += 1
-            if done % 10 == 0:
-                transaction.get().commit(True)
         # make all the changes to the database
         transaction.commit()
-        print('\nPlace creation and reindexing complete:')
-        for new_id in loaded_ids:
-            path = path_base + new_id
-            content = site.restrictedTraverse(path.encode('utf-8'))
-            print('"{}", "{}"'.format(
-                new_id, content.Title()
-            ))
+        print('Place creation and reindexing complete:')
+    for new_id in loaded_ids:
+        path = path_base + new_id
+        content = site.restrictedTraverse(path.encode('utf-8'))
+        print('"{}", "{}"'.format(
+            new_id, content.Title()
+        ))
 
 
 
