@@ -123,8 +123,18 @@ def build_names(feature):
         name = {
             'nameLanguage': 'en',
             'nameTransliterated': alias,
+            'nameAttested': alias,
             'nameType': 'geographic',
-            'attestations': ['twentieth-ce', 'twenty-first-ce']
+            'attestations': [
+                {
+                    'timePeriod': 'twentieth-ce',
+                    'confidence': 'confident'
+                },
+                {
+                    'timePeriod': 'twenty-first-ce',
+                    'confidence': 'confident'
+                }
+            ]
         }
         names.append(name)
     return names
@@ -156,8 +166,12 @@ def build_attestations(feature):
         end_century = -(-end // 100)
         for i in range(start_century, end_century):
             if i == 0:
-                continue
-            attestations.append(CENTURY_TERMS[str(i)])
+                continue  # out, vile astronomers!
+            attestations.append(
+                {
+                    'timePeriod': CENTURY_TERMS[str(i)],
+                    'confidence': 'confident'
+                })
     return attestations
 
 
@@ -186,7 +200,8 @@ def build_locations(feature):
                 'archaeologicalRemains': 'substantive',
                 'accuracy':
                     '/features/metadata/' + feature['accuracy_document'],
-                'attestations': build_attestations(feature)
+                'attestations': build_attestations(feature),
+                'featureType': PLACE_TYPES[feature['Place type'].strip()]
             }
             locations.append(location)
         else:

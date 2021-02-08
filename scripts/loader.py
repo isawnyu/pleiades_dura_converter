@@ -37,6 +37,18 @@ def populate_names(place_data, plone_context):
         new_id = make_name_id(name['nameTransliterated'])
         plone_context.invokeFactory('Name', new_id)
         name_obj = content[new_id]
+        for k, v in name.items():
+            populate_field(name_obj, k, v)
+        populate_field(name_obj, 'title', name['nameTransliterated'])
+
+
+def populate_locations(place_data, plone_context):
+    for location in place_data['locations']:
+        new_id = make_name_id(location['title'])
+        plone_context.invokeFactory('Location', new_id)
+        location_obj = content[new_id]
+        for k, v in location.items():
+            populate_field(location_obj, k, v)
 
 
 def populate_field(content, k, v):
@@ -57,13 +69,18 @@ def populate_field(content, k, v):
     elif k == 'references':
         field.resize(len(v), content)
         content.setReferenceCitations(v)
+    elif k == 'attestations':
+        field.resize(len(v), content)
+        content.setAttestations(v)
+    elif k == 'geometry':
+        val = json.dumps(v, indent=4)
+        content.setGeometry(val)
     else:
         try:
             field.set(content, v)
         except ReferenceException:
             print(
                 'Invalid reference on field "{}". Skipping.'.format(k))
-
 
 
 if __name__ == '__main__':
@@ -100,7 +117,8 @@ if __name__ == '__main__':
     done = 0
     print('Loading {} new places '.format(len(new_places)))
     sys.stdout.flush()
-    for place in new_places:
+    #for place in new_places:
+    for place in new_places[-2:]:
         content_type = 'Place'
         path = 'places'
         content = site.restrictedTraverse(path.encode('utf-8'))
@@ -114,7 +132,8 @@ if __name__ == '__main__':
             populate_field(content, k, v)
         if len(place['names']) > 0:
             populate_names(place, content)
-        # locations tbd
+        if len(place['locations']) > 0:
+            populate_locations(place, content)
         # connections tbd
         done += 1
         if done % 10 == 0:
