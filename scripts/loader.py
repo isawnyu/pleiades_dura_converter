@@ -35,19 +35,32 @@ def populate_names(place_data, plone_context):
     names = []
     for name in place_data['names']:
         new_id = make_name_id(name['nameTransliterated'])
-        plone_context.invokeFactory('Name', new_id)
+        plone_context.invokeFactory(
+            'Name',
+            id=new_id,
+            nameTransliterated=name['nameTransliterated'],
+            title=name['nameTransliterated'])
         name_obj = content[new_id]
         for k, v in name.items():
+            if k in ['title']:
+                continue
             populate_field(name_obj, k, v)
-        populate_field(name_obj, 'title', name['nameTransliterated'])
 
 
 def populate_locations(place_data, plone_context):
+    dflt = ['title', 'geometry']
     for location in place_data['locations']:
         new_id = make_name_id(location['title'])
-        plone_context.invokeFactory('Location', new_id)
-        location_obj = content[new_id]
+        plone_context.invokeFactory(
+            'Location',
+            id=new_id,
+            title=location['title'],
+            geometry=json.dumps(location['geometry'])
+        )
+        location_obj = plone_context[new_id]
         for k, v in location.items():
+            if k in ['title', 'geometry']:
+                continue
             populate_field(location_obj, k, v)
 
 
@@ -115,26 +128,39 @@ if __name__ == '__main__':
 
     loaded_ids = []
     done = 0
+    sys.stderr.flush()
     print('Loading {} new places '.format(len(new_places)))
     sys.stdout.flush()
-    #for place in new_places:
-    for place in new_places[-2:]:
+    for place in new_places:
         content_type = 'Place'
         path = 'places'
         content = site.restrictedTraverse(path.encode('utf-8'))
         new_id = content.generateId(prefix='')
         loaded_ids.append(new_id)
-        content.invokeFactory(content_type, new_id)
+        content.invokeFactory(
+            'Place',
+            id=new_id,
+            title=place['title'])
         content = content[new_id]
         for k, v in place.items():
-            if k in ['locations', 'names', 'connections']:
+            if k in ['locations', 'names', 'connections', 'title']:
                 continue  # address these after the place is created
             populate_field(content, k, v)
         if len(place['names']) > 0:
             populate_names(place, content)
         if len(place['locations']) > 0:
             populate_locations(place, content)
-        # connections tbd
+        if args.creators:
+            content.setCreators(args.creators)
+        if args.contributors:
+            content.setContributors(args.contributors)
+        if args.owner:
+            member = membership.getMemberById(args.owner)
+            user = member.getUser()
+            content.changeOwnership(user, recursive=False)
+            content.manage_setLocalRoles(args.owner, ["Owner",])
+            content.reindexObjectSecurity()
+        
         done += 1
         if done % 10 == 0:
             print('.', end='')
