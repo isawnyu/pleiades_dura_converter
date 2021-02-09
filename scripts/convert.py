@@ -12,6 +12,7 @@ from pprint import pprint
 import re
 from shapely.geometry import shape, mapping, polygon
 from shapely.validation import explain_validity
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +210,47 @@ def build_locations(feature):
     return locations
 
 
+def parse_connections(target_string, ctype=None):
+    connections = []
+    targets = [s.strip() for s in target_string.strip().split(';')]
+    for target in targets:
+        if ctype is None:
+            relationship_type = target.split()[0]
+            target = ' '.join(target.split()[1:])
+        else:
+            relationship_type = ctype
+        connections.append(
+            {
+                'connection': target,
+                'relationshipType': relationship_type
+            }
+        )
+    return connections
+
+
+def build_connections(feature):
+    connections = []
+    try:
+        connections.extend(
+            parse_connections(
+                feature['Part of (larger organizational unit at D-E)'],
+                'part_of_physical'))
+    except KeyError:
+        pass
+    try:
+        connections.extend(
+            parse_connections(
+                feature['Structure replaces'], 'succeeds'))
+    except KeyError:
+        pass
+    try:
+        connections.extend(
+            parse_connections(feature['Other connections']))
+    except KeyError:
+        pass
+    return connections
+
+
 def build_references(feature):
     references = []
     sources = [s.strip() for s in feature['source'].strip().split(';')]
@@ -238,6 +280,7 @@ def make_pjson(in_data):
             'placeType': PLACE_TYPES[feature['Place type'].strip()],
             'names': build_names(feature),
             'locations': build_locations(feature),
+            'connections': build_connections(feature),
             'references': build_references(feature)
         }
         
