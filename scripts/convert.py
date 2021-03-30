@@ -34,10 +34,14 @@ POSITIONAL_ARGUMENTS = [
 ]
 PLACE_TYPES = {
     'tower (wall)': 'tower-wall',
-    'city gate': 'city-gate'
+    'city gate': 'city-gate',
+    'city block': 'city-block',
+    'building (house?)': 'building',
+    'house': 'townhouse',
+    'synagogue': 'synagogue'
 }
-RX_BCE = re.compile(r'(\d+) BCE')
-RX_CE = re.compile(r'(\d+) CE')
+RX_BCE = re.compile(r'(\d+)(\-\d+)? BCE')
+RX_CE = re.compile(r'(\d+)(\-\d+)? CE')
 CENTURY_TERMS = {
     '-9': 'ninth-bce',
     '-8': 'eighth-bce',
@@ -62,6 +66,9 @@ RX_REFS = [
     re.compile(r'^([A-Za-z ]+ \d{4})$'),
     re.compile(r'^([A-Za-z ]+ \d{4}),? (p\. \d+)$'),
     re.compile(r'^([A-Za-z ]+ \d{4}),? (pp?\. \d+\-\d+)$'),
+    re.compile(r'^([A-Za-z ]+ \d{4}),? (p\. [xiv]+)$'),
+    re.compile(r'^([A-Za-z ]+ \d{4}),? (pp?\. \d+\-\d+, \d+)$'),
+    re.compile(r'^([A-Za-z ]+ \d{4}),? (Appendix)\.?$'),
 ]
 REFERENCES = {
     'Baird 2012': {
@@ -93,6 +100,27 @@ REFERENCES = {
             'https://www.zotero.org/groups/2533/items/UM57GCTF',
         'access_uri': 'http://www.worldcat.org/oclc/1084757192',
         'identifier': '978-0-19-874356-9'
+    },
+    'Rostovtzeff 1936': {
+        'formatted_citation': (
+            'Rostovtzeff, M.I., Bellinger, L., Hopkins, C., and Welles, '
+            'C.B., eds. The Excavations at Dura-Europos,Conducted by '
+            'Yale University and the French Academy of Inscriptions '
+            'and Letters; Preliminary Report of Sixth Season of Work, '
+            'October 1932 – March 1933. New Haven: Yale University Press, '
+            '1936.'),
+        'bibliographic_uri':
+            'https://www.zotero.org/groups/2533/items/UC843X84',
+        'access_uri': 'http://hdl.handle.net/2027/mdp.39015016894068'
+    },
+    'Kraeling 1956': {
+        'formatted_citation': (
+            'Kraeling, Carl Hermann. The Synagogue. The Excavations at '
+            'Dura-Europos Final Report, 8 part 1. New Haven: Yale '
+            'University Press, 1956.'),
+        'bibliographic_uri':
+            'https://www.zotero.org/groups/2533/items/RW89HS3Z',
+        'access_uri': 'http://www.worldcat.org/oclc/491461650'
     }
 }
 
@@ -110,7 +138,7 @@ def build_description(feature):
         desc += '.'
     start = feature['Inception'].strip()
     end = feature['Dissolved/demolished'].strip()
-    if start == 'c. 150 BCE' and end == '256 CE':
+    if start == 'c. 150 BCE' and end == '256 CE' and feature['Place type'] in ['tower (wall)', 'city gate']:
         desc += (
             '  Built ca. 150 BCE, the city\'s fortifications were breached '
             'in 256 CE and went out of use thereafter.')
@@ -151,6 +179,7 @@ def parse_year(raw: str):
         cooked = int(m.group(1))
     else:
         cooked = -1 * int(m.group(1))
+    print('parse_year: {}'.format(cooked))
     return cooked
 
 
@@ -161,18 +190,41 @@ def build_attestations(feature):
     if start != '' and end != '':
         start = parse_year(start)
         end = parse_year(end)
-        print('start: {}'.format(start))
-        print('end: {}'.format(end))
         start_century = -(-start // 100)
         end_century = -(-end // 100)
-        for i in range(start_century, end_century):
-            if i == 0:
-                continue  # out, vile astronomers!
+        if start_century == end_century:
             attestations.append(
                 {
-                    'timePeriod': CENTURY_TERMS[str(i)],
+                    'timePeriod': CENTURY_TERMS[str(start_century)],
                     'confidence': 'confident'
                 })
+        else:
+            for i in range(start_century, end_century):
+                if i == 0:
+                    continue  # out, vile astronomers!
+                attestations.append(
+                    {
+                        'timePeriod': CENTURY_TERMS[str(i)],
+                        'confidence': 'confident'
+                    })
+    elif start != '':
+        start = parse_year(start)
+        start_century = -(-start // 100)
+        attestations.append(
+            {
+                'timePeriod': CENTURY_TERMS[str(start_century)],
+                'confidence': 'confident'
+            }
+        )
+    elif end != '':
+        end = parse_year(end)
+        end_century = -(-end // 100)
+        attestations.append(
+            {
+                'timePeriod': CENTURY_TERMS[str(end_century)],
+                'confidence': 'confident'
+            }
+        )
     return attestations
 
 
@@ -186,10 +238,16 @@ def build_location_title(feature):
     return ' '.join((title, feature['Title']))
 
 
+def build_remains(feature):
+    if 'traces' in feature['Description']:
+        return 'traces'
+    else:
+        return 'substantive'
+
+
 def build_locations(feature):
     locations = []
     g = feature['Coordinate location GEOJSON'].strip()
-    print(g)
     if g.startswith('{ "type": '):
         s = shape(json.loads(g))
         if s.geom_type == 'Polygon':
@@ -198,11 +256,11 @@ def build_locations(feature):
             location = {
                 'title': build_location_title(feature),
                 'geometry': mapping(s),
-                'archaeologicalRemains': 'substantive',
+                'archaeologicalRemains': build_remains(feature),
                 'accuracy':
                     '/features/metadata/' + feature['accuracy_document'],
                 'attestations': build_attestations(feature),
-                'featureType': PLACE_TYPES[feature['Place type'].strip()]
+                'featureType': PLACE_TYPES[feature['Place type'].strip().lower()]
             }
             locations.append(location)
         else:
@@ -212,9 +270,11 @@ def build_locations(feature):
 
 def parse_connections(target_string, ctype=None):
     connections = []
-    targets = [s.strip() for s in target_string.strip().split(';')]
+    targets = [s.strip() for s in target_string.strip().split(';') if s.strip() != '']
     for target in targets:
         if ctype is None:
+            if target.strip() == '':
+                continue
             relationship_type = target.split()[0]
             target = ' '.join(target.split()[1:])
         else:
@@ -265,8 +325,12 @@ def build_references(feature):
         if reference is None:
             raise RuntimeError('failed workid lookup for {}'.format(source))
         reference['short_title'] = short_title
-        citation_detail = m.group(2)
-        reference['citation_detail'] = citation_detail
+        try:
+            citation_detail = m.group(2)
+        except IndexError:
+            pass
+        else:
+            reference['citation_detail'] = citation_detail
         references.append(reference)
     return references
 
@@ -277,7 +341,7 @@ def make_pjson(in_data):
         place = {
             'title': feature['Title'].strip(),
             'description': build_description(feature),
-            'placeType': PLACE_TYPES[feature['Place type'].strip()],
+            'placeType': PLACE_TYPES[feature['Place type'].strip().lower()],
             'names': build_names(feature),
             'locations': build_locations(feature),
             'connections': build_connections(feature),
