@@ -38,7 +38,22 @@ PLACE_TYPES = {
     'city block': 'city-block',
     'building (house?)': 'building',
     'house': 'townhouse',
-    'synagogue': 'synagogue'
+    'synagogue': 'synagogue',
+    'Q16748868 city walls': 'city-wall',
+    'q79007 street': 'street',
+    'q20034791 defensive tower': 'tower-defensive',
+    'q82117 city gate': 'city-gate',
+    'q187909 agora': 'agora',
+    'q1468524 city center': 'city-center',
+    'q88291 citadel': 'citadel',
+    'q57346 defensive wall': 'defensive-wall',
+    'q53060 gate': 'gateway',
+    'q28228887 insula': 'city-block',
+    'q1348006 city block': 'city-block',
+    'q42948 wall': 'wall-2',
+    'q23418 postern': 'postern',
+    'q12277 arch': 'arch',
+    'military assembly ground? training ground?': 'space-uncovered'
 }
 RX_BCE = re.compile(r'(\d+)(\-\d+)? BCE')
 RX_CE = re.compile(r'(\d+)(\-\d+)? CE')
@@ -69,6 +84,15 @@ RX_REFS = [
     re.compile(r'^([A-Za-z ]+ \d{4}),? (p\. [xiv]+)$'),
     re.compile(r'^([A-Za-z ]+ \d{4}),? (pp?\. \d+\-\d+, \d+)$'),
     re.compile(r'^([A-Za-z ]+ \d{4}),? (Appendix)\.?$'),
+    re.compile(
+        r'^J\. A\. (Baird\. 2018)\. Dura-Europos\. '
+        r'(pp?\. ([\d\-]+|\d+, \d+)) \(.+\)$'),
+    re.compile(r'^(Gelin et al\. \(1997\))$'),
+    re.compile(
+        r'^(James, Simon\. 2019)\. The Roman Military Base at Dura-Europos, '
+        r'Syria: An Archaeological Visualisation. New York, NY: Oxford '
+        r'University Press. (P.66, 230-232)$'
+    )
 ]
 REFERENCES = {
     'Baird 2012': {
@@ -121,6 +145,11 @@ REFERENCES = {
         'bibliographic_uri':
             'https://www.zotero.org/groups/2533/items/RW89HS3Z',
         'access_uri': 'http://www.worldcat.org/oclc/491461650'
+    },
+    'Gelin 1997': {
+        'formatted_citation': (),
+        'bibliographic_uri': 'https://www.zotero.org/groups/2533/items/67S99C6X',
+        'access_uri': 'http://www.worldcat.org/oclc/630177122'
     }
 }
 
@@ -179,7 +208,7 @@ def parse_year(raw: str):
         cooked = int(m.group(1))
     else:
         cooked = -1 * int(m.group(1))
-    print('parse_year: {}'.format(cooked))
+    # print('parse_year: {}'.format(cooked))
     return cooked
 
 
@@ -231,9 +260,10 @@ def build_attestations(feature):
 def build_location_title(feature):
     if feature['accuracy_document'] == 'dura-europos-block-l7-chen':
         title = "Total station location of"
-    elif feature['accuracy_document'] == (
-        'dura-europos-walls-and-towers-baird-chen'
-    ):
+    elif feature['accuracy_document'] in [
+        'dura-europos-walls-and-towers-baird-chen',
+        'dura-europos-james-chen'
+    ]:
         title = "Plan location of"
     return ' '.join((title, feature['Title']))
 
@@ -247,11 +277,24 @@ def build_remains(feature):
 
 def build_locations(feature):
     locations = []
+    t = feature['Title'].strip()
     g = feature['Coordinate location GEOJSON'].strip()
-    if g.startswith('{ "type": '):
+    if (
+        g.startswith('NB: consists of 2 related polygons: ')
+        or g.startswith('NB 2 Polygons:')
+        or g.startswith('NB: consists of two polygons;')
+    ):
+        logger.error(
+            'Skipping annotated multipolygon (title: "{}"'
+            ''.format(t))
+    elif g.startswith('{ "type": '):
         s = shape(json.loads(g))
         if s.geom_type == 'Polygon':
             s = polygon.orient(s)
+        elif s.geom_type == 'MultiPolygon':
+            logger.warning(
+                'Shapely does not have an easy function to unwind '
+                'multipolygons (title: "{}")'.format(t))
         if s.is_valid:
             location = {
                 'title': build_location_title(feature),
@@ -260,11 +303,23 @@ def build_locations(feature):
                 'accuracy':
                     '/features/metadata/' + feature['accuracy_document'],
                 'attestations': build_attestations(feature),
-                'featureType': PLACE_TYPES[feature['Place type'].strip().lower()]
+                'featureType': [
+                    PLACE_TYPES[pt.lower().strip()] for pt in
+                    feature['Place type'].split(';') if pt.strip() != ''],
             }
             locations.append(location)
         else:
-            raise ValueError(explain_validity(s))
+            raise ValueError(
+                '{} (title: "{}")'.format(explain_validity(s), t))
+    else:
+        if g.strip() == '':
+            logger.warning(
+                'Skipping empty geometry (title: "{}")'
+                ''.format(t))
+        else:
+            logger.warning(
+                'Skipping unexpected geometry values "{} ..." (title: "{}")'
+                ''.format(g.strip()[:60], t))
     return locations
 
 
@@ -317,13 +372,20 @@ def build_references(feature):
     for source in sources:
         reference = None
         for rx in RX_REFS:
+            short_title = ''
             m = rx.match(source)
             if m is not None:
                 short_title = m.group(1)
+                removals = ['et al.', '.', '(', ')', ', Simon']
+                for removal in removals:
+                    short_title = short_title.replace(removal, '')
+                short_title = ' '.join(short_title.split()).strip()
                 reference = REFERENCES[short_title]
                 break
         if reference is None:
-            raise RuntimeError('failed workid lookup for {}'.format(source))
+            raise RuntimeError(
+                'failed workid (short_title={}) lookup for {}'
+                ''.format(short_title, source))
         reference['short_title'] = short_title
         try:
             citation_detail = m.group(2)
@@ -341,7 +403,7 @@ def make_pjson(in_data):
         place = {
             'title': feature['Title'].strip(),
             'description': build_description(feature),
-            'placeType': PLACE_TYPES[feature['Place type'].strip().lower()],
+            'placeType': [PLACE_TYPES[pt.lower().strip()] for pt in feature['Place type'].split(';') if pt.strip() != ''],
             'names': build_names(feature),
             'locations': build_locations(feature),
             'connections': build_connections(feature),
