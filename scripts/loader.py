@@ -4,6 +4,7 @@ from Acquisition import aq_parent
 import argparse
 import json
 from pleiades.dump import getSite, spoofRequest
+from pprint import pprint
 from Products.Archetypes.exceptions import ReferenceException
 from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone.utils import safe_unicode
@@ -18,7 +19,7 @@ import transaction
 RX_SPACE = re.compile(r'[^\w\s]')
 RX_UNDERSCORE = re.compile(r'\_')
 FALLBACK_IDS = {
-    'City wall of Dura-Europos': '181763748'
+    'City wall of Dura-Europos': '15685985'  # production
 }
 
 
@@ -117,6 +118,11 @@ def set_attribution(content, args):
         populate_field(content, 'contributors', args.contributors)
 
 
+def set_tags(content, args):
+    if args.subjects:
+        populate_field(content, 'subject', args.subjects)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create new Pleiades places.')
     parser.add_argument('--dry-run', action='store_true', default=False,
@@ -133,6 +139,8 @@ if __name__ == '__main__':
                         dest='creators', help='Creators. Separated by spaces.')
     parser.add_argument('--contributors', default=[],
                         dest='contributors', nargs='+', help='Contributors. Separated by spaces.')
+    parser.add_argument('--tags', default=[], dest='subjects', nargs='+',
+                        help='Tags (subjects). Separated by spaces.')
     parser.add_argument('file', type=file, help='Path to JSON import file')
     parser.add_argument('-c', help='Optional Zope configuration file.')
     try:
@@ -154,7 +162,7 @@ if __name__ == '__main__':
     sys.stderr.flush()
     print('Loading {} new places '.format(len(new_places)))
     sys.stdout.flush()
-    for place in new_places[-2:]:
+    for place in new_places:
         content_type = 'Place'
         path = 'places'
         content = site.restrictedTraverse(path.encode('utf-8'))
@@ -170,6 +178,7 @@ if __name__ == '__main__':
                 continue  # address these after the place is created in plone
             populate_field(content, k, v)
         set_attribution(content, args)
+        set_tags(content, args)
 
         # create names
         if len(place['names']) > 0:
@@ -191,6 +200,7 @@ if __name__ == '__main__':
             transaction.commit()
 
     # create connections
+    pprint(loaded_ids, indent=4)
     path_base = 'places/'
     done = 0
     for place_id, connections in connections_pending.items():
