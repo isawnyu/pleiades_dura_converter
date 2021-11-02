@@ -292,9 +292,8 @@ def build_locations(feature):
         if s.geom_type == 'Polygon':
             s = polygon.orient(s)
         elif s.geom_type == 'MultiPolygon':
-            logger.warning(
-                'Shapely does not have an easy function to unwind '
-                'multipolygons (title: "{}")'.format(t))
+            # break into two polygons, each of which is a separate location
+            raise NotImplementedError(s.geom_type)
         if s.is_valid:
             location = {
                 'title': build_location_title(feature),
