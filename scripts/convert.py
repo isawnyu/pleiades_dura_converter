@@ -5,6 +5,7 @@ Convert YDEA data for Pleiades
 """
 
 from airtight.cli import configure_commandline
+from copy import copy
 import encoded_csv
 import json
 import logging
@@ -15,6 +16,10 @@ from shapely.validation import explain_validity
 import sys
 
 logger = logging.getLogger(__name__)
+
+place_type_key = None
+source_key = None
+accuracy_key = None
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 OPTIONAL_ARGUMENTS = [
@@ -40,6 +45,7 @@ PLACE_TYPES = {
     'house': 'townhouse',
     'synagogue': 'synagogue',
     'Q16748868 city walls': 'city-wall',
+    'q16748868 city walls': 'city-wall',
     'q79007 street': 'street',
     'q20034791 defensive tower': 'tower-defensive',
     'q82117 city gate': 'city-gate',
@@ -78,20 +84,20 @@ CENTURY_TERMS = {
     '9': 'ninth-ce'
 }
 RX_REFS = [
-    re.compile(r'^([A-Za-z ]+ \d{4})$'),
-    re.compile(r'^([A-Za-z ]+ \d{4}),? (p\. \d+)$'),
-    re.compile(r'^([A-Za-z ]+ \d{4}),? (pp?\. \d+\-\d+)$'),
-    re.compile(r'^([A-Za-z ]+ \d{4}),? (p\. [xiv]+)$'),
-    re.compile(r'^([A-Za-z ]+ \d{4}),? (pp?\. \d+\-\d+, \d+)$'),
-    re.compile(r'^([A-Za-z ]+ \d{4}),? (Appendix)\.?$'),
+    re.compile(r'([A-Za-z ]+ \d{4})'),
+    re.compile(r'([A-Za-z ]+ \d{4}),? (p\. \d+)'),
+    re.compile(r'([A-Za-z ]+ \d{4}),? (pp?\. \d+-\d+)'),
+    re.compile(r'([A-Za-z ]+ \d{4}),? (p\. [xiv]+)'),
+    re.compile(r'([A-Za-z ]+ \d{4}),? (pp?\. \d+\-\d+, \d+)'),
+    re.compile(r'([A-Za-z ]+ \d{4}),? (Appendix)\.?'),
     re.compile(
-        r'^J\. A\. (Baird\. 2018)\. Dura-Europos\. '
-        r'(pp?\. ([\d\-]+|\d+, \d+)) \(.+\)$'),
-    re.compile(r'^(Gelin et al\. \(1997\))$'),
+        r'J\. A\. (Baird\. 2018)\. Dura-Europos\. '
+        r'(pp?\. ([\d\-]+|\d+, \d+)) \(.+\)'),
+    re.compile(r'^(Gelin et al\. \(1997\))'),
     re.compile(
-        r'^(James, Simon\. 2019)\. The Roman Military Base at Dura-Europos, '
+        r'(James, Simon\. 2019)\. The Roman Military Base at Dura-Europos, '
         r'Syria: An Archaeological Visualisation. New York, NY: Oxford '
-        r'University Press. (P.66, 230-232)$'
+        r'University Press. (P.66, 230-232)'
     )
 ]
 REFERENCES = {
@@ -150,12 +156,60 @@ REFERENCES = {
         'formatted_citation': (),
         'bibliographic_uri': 'https://www.zotero.org/groups/2533/items/67S99C6X',
         'access_uri': 'http://www.worldcat.org/oclc/630177122'
+    },
+    'von Gerkan 1936': {
+        'formatted_citation': (
+            'von Gerkan, Armin. “The Fortifications.” In The Excavations at '
+            'Dura-Europos, Preliminary Report on the Seventh and Eighth '
+            'Seasons, 1933-1934 and 1934-1935, edited by Michael I. '
+            'Rostovtzeff, Frank E. Brown, and C. Welles, 4-61. New Haven: '
+            'Yale University Press, 1936.'),
+        'bibliographic_uri': 'https://www.zotero.org/groups/2533/items/L4MBW9Y5',
+        'access_uri': 'http://www.worldcat.org/oclc/896191961'
+    },
+    'Leriche 1986': {
+        'formatted_citation': (
+            'Leriche, Pierre. Doura-Europos. Études. Vol. 1. Publication '
+            'hors-série / Institut français d’archéologie du Proche-Orient 16. '
+            'Paris: P. Geuthner, 1986.'),
+        'bibliographic_uri': 'https://www.zotero.org/groups/2533/items/5TB75YJB',
+        'access_uri': 'http://www.worldcat.org/oclc/466092686',
+        'identifier': '978-2-7053-0356-3'
     }
+}
+CONNECTION_TARGETS = {
+    'City Wall of Dura-Europos': 'https://pleiades.stoa.org/places/15685985',
+    'City walls of Dura-Europos': "https://pleiades.stoa.org/places/15685985"
 }
 
 
 def read_ydea(fn: str):
     r = encoded_csv.get_csv(fn)
+    
+    global place_type_key
+    for k in ['Place type', 'Place Type']:
+        if k in r['fieldnames']:
+            place_type_key = k
+            break
+    if place_type_key is None:
+        raise RuntimeError(f"Cannot find place-type key in CSV fieldnames: {r['fieldnames']}")
+    
+    global source_key
+    for k in ['Source', 'source']:
+        if k in r['fieldnames']:
+            source_key = k
+            break
+    if source_key is None:
+        raise RuntimeError(f"Cannot find source key in CSV fieldnames: {r['fieldnames']}")
+
+    global accuracy_key
+    for k in ['Positional accuracy assessment info', 'accuracy_document']:
+        if k in r['fieldnames']:
+            accuracy_key = k
+            break
+    if accuracy_key is None:
+        raise RuntimeError(f"Cannot find accuracy key in CSV fieldnames: {r['fieldnames']}")
+
     return r['content']
 
 
@@ -167,7 +221,7 @@ def build_description(feature):
         desc += '.'
     start = feature['Inception'].strip()
     end = feature['Dissolved/demolished'].strip()
-    if start == 'c. 150 BCE' and end == '256 CE' and feature['Place type'] in ['tower (wall)', 'city gate']:
+    if start == 'c. 150 BCE' and end == '256 CE' and feature[place_type_key] in ['tower (wall)', 'city gate']:
         desc += (
             '  Built ca. 150 BCE, the city\'s fortifications were breached '
             'in 256 CE and went out of use thereafter.')
@@ -258,13 +312,32 @@ def build_attestations(feature):
 
 
 def build_location_title(feature):
-    if feature['accuracy_document'] == 'dura-europos-block-l7-chen':
+    if feature[accuracy_key] == 'dura-europos-block-l7-chen':
         title = "Total station location of"
-    elif feature['accuracy_document'] in [
+    elif feature[accuracy_key] in [
         'dura-europos-walls-and-towers-baird-chen',
         'dura-europos-james-chen'
     ]:
         title = "Plan location of"
+    elif feature[accuracy_key].startswith(
+        'Features related to the streets and blocks of Dura-Europos '
+        'were prepared by Anne Chen in 2021 on the basis of Baird '
+        '2012 Fig. 1.3.'
+    ):
+        title = 'Plan location of'
+    elif feature[accuracy_key].startswith(
+        'plan used= James 2019 Plate XXII, georectified plan in QGIS'
+    ):
+        title = 'Plan location of'
+    elif feature[accuracy_key].startswith(
+        'Features related to the walls and towers of Dura-Europos '
+        'were prepared by Anne Chen in 2020 on the basis of Baird '
+        '2012 Fig. 1.3'
+    ):
+        title = 'Plan location of'
+    else:
+        raise RuntimeError(
+            f'Unexpected accuracy value: "{feature[accuracy_key]}"')
     return ' '.join((title, feature['Title']))
 
 
@@ -277,48 +350,71 @@ def build_remains(feature):
 
 def build_locations(feature):
     locations = []
-    t = feature['Title'].strip()
-    g = feature['Coordinate location GEOJSON'].strip()
-    if (
-        g.startswith('NB: consists of 2 related polygons: ')
-        or g.startswith('NB 2 Polygons:')
-        or g.startswith('NB: consists of two polygons;')
-    ):
-        logger.error(
-            'Skipping annotated multipolygon (title: "{}"'
-            ''.format(t))
-    elif g.startswith('{ "type": '):
-        s = shape(json.loads(g))
+    t_text = feature['Title'].strip()
+    g_text = feature['Coordinate location GEOJSON'].strip()
+    if g_text == '':
+        g_data = list()
+        logger.warning(f'Skipping empty geometry for "{t_text}".')
+    else:
+        try:
+            g_data = json.loads(g_text)
+        except json.decoder.JSONDecodeError as err:
+            logger.error(f'Skipping malformed geometry for "{t_text}". Got JSONDecodeError: {str(err)}')
+            g_data = []
+        else:
+            if isinstance(g_data, dict):
+                g_data = [g_data, ]
+            elif not isinstance(g_data, list):
+                raise NotImplementedError(f'Expected {list} or {dict}. Got {type(g_data)}.')
+    logger.info(f'Processing {len(g_data)} geometries in {t_text}.')
+    for g_obj in g_data:
+        s = shape(g_obj)
+        if s.geom_type not in ['Point', 'Polygon', 'LineString']:
+            logger.error(f'Unsupported geometry type "{s.geom_type}" for "{t_text}". Skipping ...')
+            continue
         if s.geom_type == 'Polygon':
             s = polygon.orient(s)
-        elif s.geom_type == 'MultiPolygon':
-            # break into two polygons, each of which is a separate location
-            raise NotImplementedError(s.geom_type)
         if s.is_valid:
+            if feature[accuracy_key] in [
+                'dura-europos-block-l7-chen',
+                'dura-europos-walls-and-towers-baird-chen',
+                'dura-europos-james-chen'
+            ]:
+                accuracy_id = feature[accuracy_key]
+            elif feature[accuracy_key].startswith(
+                'Features related to the streets and blocks of Dura-Europos '
+                'were prepared by Anne Chen in 2021 on the basis of Baird '
+                '2012 Fig. 1.3.'
+            ):
+                accuracy_id = 'dura-europos-walls-and-towers-baird-chen'
+            elif feature[accuracy_key].startswith(
+                'plan used= James 2019 Plate XXII, georectified plan in QGIS'
+            ):
+                accuracy_id = 'dura-europos-james-chen'
+            elif feature[accuracy_key].startswith(
+                'Features related to the walls and towers of Dura-Europos '
+                'were prepared by Anne Chen in 2020 on the basis of Baird '
+                '2012 Fig. 1.3'
+            ):
+                accuracy_id = 'dura-europos-walls-and-towers-baird-chen'
+            else:
+                raise RuntimeError(
+                    f"Unexpected accuracy value ({feature[accuracy_key]}) for feature with title={feature['Title']}")
             location = {
                 'title': build_location_title(feature),
                 'geometry': mapping(s),
                 'archaeologicalRemains': build_remains(feature),
                 'accuracy':
-                    '/features/metadata/' + feature['accuracy_document'],
+                    '/features/metadata/' + accuracy_id,
                 'attestations': build_attestations(feature),
                 'featureType': [
                     PLACE_TYPES[pt.lower().strip()] for pt in
-                    feature['Place type'].split(';') if pt.strip() != ''],
+                    feature[place_type_key].split(';') if pt.strip() != ''],
             }
             locations.append(location)
         else:
             raise ValueError(
                 '{} (title: "{}")'.format(explain_validity(s), t))
-    else:
-        if g.strip() == '':
-            logger.warning(
-                'Skipping empty geometry (title: "{}")'
-                ''.format(t))
-        else:
-            logger.warning(
-                'Skipping unexpected geometry values "{} ..." (title: "{}")'
-                ''.format(g.strip()[:60], t))
     return locations
 
 
@@ -333,9 +429,13 @@ def parse_connections(target_string, ctype=None):
             target = ' '.join(target.split()[1:])
         else:
             relationship_type = ctype
+        try:
+            target_string = CONNECTION_TARGETS[target]
+        except KeyError:
+            target_string = target
         connections.append(
             {
-                'connection': target,
+                'connection': target_string,
                 'relationshipType': relationship_type
             }
         )
@@ -344,57 +444,78 @@ def parse_connections(target_string, ctype=None):
 
 def build_connections(feature):
     connections = []
-    try:
-        connections.extend(
-            parse_connections(
-                feature['Part of (larger organizational unit at D-E)'],
-                'part_of_physical'))
-    except KeyError:
-        pass
-    try:
-        connections.extend(
-            parse_connections(
-                feature['Structure replaces'], 'succeeds'))
-    except KeyError:
-        pass
-    try:
-        connections.extend(
-            parse_connections(feature['Other connections']))
-    except KeyError:
-        pass
+    categories = [
+        ('Location', 'located_at'),
+        ('Part of (larger organizational unit at D-E)', 'part_of_physical'),
+        ('Structure replaces', 'succeeds'),
+        ('Other connections', None)
+    ]
+    for field_name, connection_type in categories:
+        try:
+            connections.extend(
+                parse_connections(
+                    feature[field_name], connection_type))
+        except KeyError:
+            pass
     return connections
 
 
 def build_references(feature):
     references = []
-    sources = [s.strip() for s in feature['source'].strip().split(';')]
+    sources = [s.strip() for s in feature[source_key].strip().split(';') if s.strip() != '']
+    failures = []
     for source in sources:
         reference = None
         for rx in RX_REFS:
             short_title = ''
-            m = rx.match(source)
+            m = rx.fullmatch(source)
             if m is not None:
                 short_title = m.group(1)
                 removals = ['et al.', '.', '(', ')', ', Simon']
                 for removal in removals:
                     short_title = short_title.replace(removal, '')
                 short_title = ' '.join(short_title.split()).strip()
-                reference = REFERENCES[short_title]
-                break
+                reference = copy(REFERENCES[short_title])
+                reference['short_title'] = short_title
+                try:
+                    citation_detail = m.group(2)
+                except IndexError:
+                    pass
+                else:
+                    reference['citation_detail'] = citation_detail
+                references.append(reference)
         if reference is None:
-            raise RuntimeError(
-                'failed workid (short_title={}) lookup for {}'
-                ''.format(short_title, source))
-        reference['short_title'] = short_title
-        try:
-            citation_detail = m.group(2)
-        except IndexError:
-            pass
-        else:
-            reference['citation_detail'] = citation_detail
-        references.append(reference)
+            failures.append(source)
+    mined_references = mine_references(failures)
+    references.extend(mined_references)
+    pprint(references, indent=4)
+    print('-'*78)
     return references
 
+def mine_references(sources: list):
+    # are there any references buried in longer discursive text?
+
+    references = []
+    for source in sources:
+        for rx in RX_REFS:
+            for m in rx.finditer(source):
+                short_title = m.group(1)
+                print(short_title)
+                removals = ['et al.', '.', '(', ')', ', Simon']
+                for removal in removals:
+                    short_title = short_title.replace(removal, '')
+                short_title = ' '.join(short_title.split()).strip()
+                reference = copy(REFERENCES[short_title])
+                reference['short_title'] = short_title
+                try:
+                    citation_detail = m.group(2)
+                except IndexError:
+                    pass
+                else:
+                    reference['citation_detail'] = citation_detail
+                references.append(reference)
+    return references
+            
 
 def make_pjson(in_data):
     places = []
@@ -402,7 +523,7 @@ def make_pjson(in_data):
         place = {
             'title': feature['Title'].strip(),
             'description': build_description(feature),
-            'placeType': [PLACE_TYPES[pt.lower().strip()] for pt in feature['Place type'].split(';') if pt.strip() != ''],
+            'placeType': [PLACE_TYPES[pt.lower().strip()] for pt in feature[place_type_key].split(';') if pt.strip() != ''],
             'names': build_names(feature),
             'locations': build_locations(feature),
             'connections': build_connections(feature),

@@ -19,5 +19,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=['airtight', 'encoded_csv', 'shapely'],
-    python_requires='~=3.9.1'
+    python_requires='>=3.9.1'
 )
