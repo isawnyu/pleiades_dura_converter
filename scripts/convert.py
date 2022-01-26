@@ -9,7 +9,7 @@ from copy import copy
 import encoded_csv
 import json
 import logging
-from pprint import pprint
+from pprint import pformat, pprint
 import re
 from shapely.geometry import shape, mapping, polygon
 from shapely.validation import explain_validity
@@ -178,10 +178,31 @@ REFERENCES = {
     }
 }
 CONNECTION_TARGETS = {
+    'city wall': 'https://pleiades.stoa.org/places/15685985',
     'City Wall of Dura-Europos': 'https://pleiades.stoa.org/places/15685985',
-    'City walls of Dura-Europos': "https://pleiades.stoa.org/places/15685985"
+    'City walls of Dura-Europos': "https://pleiades.stoa.org/places/15685985",
+    'Part of Military camp after c. 100 CE': 'Military Base',
+    'citadel of Dura-Europos': 'Citadel of Dura-Europos',
+    'citadel fortification of Dura-Europos': 'Citadel Fortification of Dura-Europos',
+    'military campus after c. 100 CE': 'Military Campus',
+    'agora': 'Agora of Dura-Europos',
+    'military camp': 'Military Base'
 }
 
+def titleize(val: str):
+    # oh the pain
+    t = val.title()
+    uncap = ['of', '10th', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', 'at', 'and', 'in']
+    uncapd = {u.title(): u for u in uncap}
+    words = t.split()
+    new_words = []
+    for word in words:
+        try:
+            new_words.append(uncapd[word])
+        except KeyError:
+            new_words.append(word)
+    t = ' '.join(new_words)
+    return t
 
 def read_ydea(fn: str):
     r = encoded_csv.get_csv(fn)
@@ -366,7 +387,7 @@ def build_locations(feature):
                 g_data = [g_data, ]
             elif not isinstance(g_data, list):
                 raise NotImplementedError(f'Expected {list} or {dict}. Got {type(g_data)}.')
-    logger.info(f'Processing {len(g_data)} geometries in {t_text}.')
+    # logger.info(f'Processing {len(g_data)} geometries in {t_text}.')
     for g_obj in g_data:
         s = shape(g_obj)
         if s.geom_type not in ['Point', 'Polygon', 'LineString']:
@@ -432,7 +453,10 @@ def parse_connections(target_string, ctype=None):
         try:
             target_string = CONNECTION_TARGETS[target]
         except KeyError:
-            target_string = target
+            try:
+                target_string = CONNECTION_TARGETS[titleize(target)]
+            except KeyError:
+                target_string = target
         connections.append(
             {
                 'connection': target_string,
@@ -442,7 +466,7 @@ def parse_connections(target_string, ctype=None):
     return connections
 
 
-def build_connections(feature):
+def build_connections(feature, places={}):
     connections = []
     categories = [
         ('Location', 'located_at'),
@@ -457,6 +481,22 @@ def build_connections(feature):
                     feature[field_name], connection_type))
         except KeyError:
             pass
+    for connection in connections:
+        target_string = connection['connection'].strip()
+        if target_string.startswith('https://pleiades.stoa.org/places/'):
+            continue
+        try:
+            places[target_string]
+        except KeyError:
+            target_string = titleize(target_string)
+            try:
+                places[target_string]
+            except KeyError:
+                keys = list(places.keys())
+                keys.sort()
+                keys = ''.join([f'\t{k}\n' for k in keys])
+                raise RuntimeError(f'Failed connection title match: "{target_string}".\nAvailable keys:\n{keys}.')
+        logger.debug(f'Connection target: "{target_string}"')
     return connections
 
 
@@ -488,8 +528,6 @@ def build_references(feature):
             failures.append(source)
     mined_references = mine_references(failures)
     references.extend(mined_references)
-    pprint(references, indent=4)
-    print('-'*78)
     return references
 
 def mine_references(sources: list):
@@ -518,20 +556,30 @@ def mine_references(sources: list):
             
 
 def make_pjson(in_data):
-    places = []
+    places = {}
+    features_by_title = {}
     for i, feature in enumerate(in_data):
+        title = titleize(feature['Title'].strip())
+        try:
+            places[title]
+        except KeyError:
+            features_by_title[title] = feature
+        else:
+            raise RuntimeError(f'Title collision error with "{title}".')
         place = {
-            'title': feature['Title'].strip(),
+            'title': title,
             'description': build_description(feature),
             'placeType': [PLACE_TYPES[pt.lower().strip()] for pt in feature[place_type_key].split(';') if pt.strip() != ''],
             'names': build_names(feature),
             'locations': build_locations(feature),
-            'connections': build_connections(feature),
+            # 'connections': build_connections(feature),
             'references': build_references(feature)
         }
-        
-        places.append(place)
-    return places
+        places[title] = place
+
+    for title, place in places.items():
+        place['connections'] = build_connections(features_by_title[title], places)
+    return [place for title, place in places.items()]
 
 
 def write_pjson(pjson, fn):
