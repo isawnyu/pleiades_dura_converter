@@ -25,12 +25,15 @@ Use scripts/place_maker.py.
 
 ```bash
 ssh isaw1
+sudo su
 cd /srv/python27-apps/pleiades4/
-
+su plone_daemon
+bin/instance1 run scripts/place_maker.py -h
 
 usage: interpreter [-h] [--dry-run] [--nolist] [--message MESSAGE]
-                   [--owner OWNER] [--groups GROUPS] [--creators CREATORS]
-                   [--contributors CONTRIBUTORS] [--tags SUBJECTS] [-c C]
+                   [--actor ACTOR] [--owner OWNER] [--groups GROUPS]
+                   [--creators CREATORS] [--contributors CONTRIBUTORS]
+                   [--tags SUBJECTS [SUBJECTS ...]] [-c C]
                    file
 
 Create new Pleiades places.
@@ -43,23 +46,30 @@ optional arguments:
   --dry-run             No changes will be made.
   --nolist              Do not output list of places.
   --message MESSAGE     Commit message.
+  --actor ACTOR         Workflow actor. Defaults to "admin".
   --owner OWNER         Content owner. Defaults to "admin"
   --groups GROUPS       Group names. Separated by spaces or commas.
   --creators CREATORS   Creators. Separated by spaces or commas.
   --contributors CONTRIBUTORS
                         Contributors. Separated by spaces or commas.
-  --tags SUBJECTS       Tags (subjects). Separated by spaces or commas.
+  --tags SUBJECTS [SUBJECTS ...]
+                        Tags (subjects). Separate multiple tags with commas.
   -c C                  Optional Zope configuration file.
+
 ```
 
 Here's an example invocation:
 
 ```bash
-bin/instance1 run scripts/place_maker.py  --message='batch load with the place_maker script by thomase' --owner=achen --creators=achen --contributors=kcl,thomase,jbecker --tags='YDEA project' /home/thomase/update3.24-Dura-organizational-units-blocks-streets-converted.json
+scp foo3.json isaw1:
+ssh isaw1
+sudo su
+cd /srv/python27-apps/pleiades4/
+su plone_daemon
+bin/instance1 run scripts/place_maker.py  --actor=thomase --owner=achen --creators=achen --contributors=kcl,thomase,jbecker --tags='YDEA project' /home/thomase/foo3.json
 ```
 
 # next steps
 
-- Figure out why no connections are being identified and written to the JSON by converter.py
-- Figure out how to easily limit the number of items we create in Pleiades as we are testing.
+- profit
 
