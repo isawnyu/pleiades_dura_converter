@@ -50,4 +50,16 @@ optional arguments:
                         Contributors. Separated by spaces or commas.
   --tags SUBJECTS       Tags (subjects). Separated by spaces or commas.
   -c C                  Optional Zope configuration file.
+```
+
+Here's an example invocation:
+
+```bash
+bin/instance1 run scripts/place_maker.py  --message='batch load with the place_maker script by thomase' --owner=achen --creators=achen --contributors=kcl,thomase,jbecker --tags='YDEA project' /home/thomase/update3.24-Dura-organizational-units-blocks-streets-converted.json
+```
+
+# next steps
+
+- Figure out why no connections are being identified and written to the JSON by converter.py
+- Figure out how to easily limit the number of items we create in Pleiades as we are testing.
 
