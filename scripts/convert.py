@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 place_type_key = None
 source_key = None
 accuracy_key = None
+missing_connection_fields = []
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 OPTIONAL_ARGUMENTS = [
@@ -59,7 +60,8 @@ PLACE_TYPES = {
     'q42948 wall': 'wall-2',
     'q23418 postern': 'postern',
     'q12277 arch': 'arch',
-    'military assembly ground? training ground?': 'space-uncovered'
+    'military assembly ground? training ground?': 'space-uncovered',
+    'military base': 'military-base'
 }
 RX_BCE = re.compile(r'(\d+)(\-\d+)? BCE')
 RX_CE = re.compile(r'(\d+)(\-\d+)? CE')
@@ -178,6 +180,7 @@ REFERENCES = {
     }
 }
 CONNECTION_TARGETS = {
+    'Dura-Europos': 'https://pleiades.stoa.org/places/893990',
     'city wall': 'https://pleiades.stoa.org/places/15685985',
     'City Wall of Dura-Europos': 'https://pleiades.stoa.org/places/15685985',
     'City walls of Dura-Europos': "https://pleiades.stoa.org/places/15685985",
@@ -206,7 +209,19 @@ def titleize(val: str):
 
 def read_ydea(fn: str):
     r = encoded_csv.get_csv(fn)
-    
+
+    new_fieldnames = []
+    for fn in r['fieldnames']:
+        if fn != fn.strip():
+            new_fn = fn.strip()
+            for row in r['content']:
+                row[new_fn] = row[fn]
+                row.pop(fn)
+            new_fieldnames.append(new_fn)
+        else:
+            new_fieldnames.append(fn)
+    r['fieldnames'] = new_fieldnames
+
     global place_type_key
     for k in ['Place type', 'Place Type']:
         if k in r['fieldnames']:
@@ -235,11 +250,13 @@ def read_ydea(fn: str):
 
 
 def build_description(feature):
-    desc = feature['Description'].strip()
-    desc = desc.split()
-    desc = desc[0].capitalize() + ' ' + ' '.join(desc[1:])
+    orig_desc = feature['Description'].strip()
+    desc = orig_desc.split()
+    desc = desc[0][0].capitalize() + desc[0][1:] + ' ' + ' '.join(desc[1:])
     if desc[-1] != '.':
         desc += '.'
+    if orig_desc != desc:
+        logger.warning(f'Description changed: "{desc}" from "{orig_desc}"')
     start = feature['Inception'].strip()
     end = feature['Dissolved/demolished'].strip()
     if start == 'c. 150 BCE' and end == '256 CE' and feature[place_type_key] in ['tower (wall)', 'city gate']:
@@ -371,7 +388,7 @@ def build_remains(feature):
 
 def build_locations(feature):
     locations = []
-    t_text = feature['Title'].strip()
+    t_text = titleize(feature['Title'].strip())
     g_text = feature['Coordinate location GEOJSON'].strip()
     if g_text == '':
         g_data = list()
@@ -428,9 +445,9 @@ def build_locations(feature):
                 'accuracy':
                     '/features/metadata/' + accuracy_id,
                 'attestations': build_attestations(feature),
-                'featureType': [
+                'featureType': list(set([
                     PLACE_TYPES[pt.lower().strip()] for pt in
-                    feature[place_type_key].split(';') if pt.strip() != ''],
+                    feature[place_type_key].split(';') if pt.strip() != ''])),
             }
             locations.append(location)
         else:
@@ -451,15 +468,16 @@ def parse_connections(target_string, ctype=None):
         else:
             relationship_type = ctype
         try:
-            target_string = CONNECTION_TARGETS[target]
+            real_target = CONNECTION_TARGETS[target]
         except KeyError:
             try:
-                target_string = CONNECTION_TARGETS[titleize(target)]
+                real_target = CONNECTION_TARGETS[titleize(target)]
             except KeyError:
-                target_string = target
+                real_target = target
+        
         connections.append(
             {
-                'connection': target_string,
+                'connection': real_target,
                 'relationshipType': relationship_type
             }
         )
@@ -469,18 +487,28 @@ def parse_connections(target_string, ctype=None):
 def build_connections(feature, places={}):
     connections = []
     categories = [
-        ('Location', 'located_at'),
+        ('Location', 'at'),
         ('Part of (larger organizational unit at D-E)', 'part_of_physical'),
         ('Structure replaces', 'succeeds'),
         ('Other connections', None)
     ]
     for field_name, connection_type in categories:
         try:
+            feature[field_name]
+        except KeyError:
+            global missing_connection_fields
+            if field_name not in missing_connection_fields:
+                missing_connection_fields.append(field_name)
+                logger.warning(f'Expected connection fieldname "{field_name}" is missing from input data.')
+        
+        try:
             connections.extend(
                 parse_connections(
                     feature[field_name], connection_type))
         except KeyError:
             pass
+    if connections:
+        logger.debug(connections)
     for connection in connections:
         target_string = connection['connection'].strip()
         if target_string.startswith('https://pleiades.stoa.org/places/'):
@@ -495,8 +523,10 @@ def build_connections(feature, places={}):
                 keys = list(places.keys())
                 keys.sort()
                 keys = ''.join([f'\t{k}\n' for k in keys])
-                raise RuntimeError(f'Failed connection title match: "{target_string}".\nAvailable keys:\n{keys}.')
-        logger.debug(f'Connection target: "{target_string}"')
+                t = titleize(feature['Title'])
+                raise RuntimeError(f'Failed connection title match for {t}: "{target_string}".\nAvailable keys:\n{keys}.')
+            else:
+                connection['connection'] = target_string
     return connections
 
 
@@ -569,7 +599,7 @@ def make_pjson(in_data):
         place = {
             'title': title,
             'description': build_description(feature),
-            'placeType': [PLACE_TYPES[pt.lower().strip()] for pt in feature[place_type_key].split(';') if pt.strip() != ''],
+            'placeType': list(set([PLACE_TYPES[pt.lower().strip()] for pt in feature[place_type_key].split(';') if pt.strip() != ''])),
             'names': build_names(feature),
             'locations': build_locations(feature),
             # 'connections': build_connections(feature),
