@@ -25,6 +25,7 @@ read_key_options = {
         "accuracy_document",
         "Other notes",
     ],
+    "aliases": ["Alias", "Aen"],
     "description": ["Description", "Den"],
     "dissolution": ["P576 dissolved/demolished", "dissolved/demolished"],
     "inception": ["Inception", "P571 inception"],
@@ -307,9 +308,16 @@ def build_description(feature):
 
 
 def build_names(feature):
-    alias = feature["Alias"].strip()
+    k = read_keys["aliases"]
+    aliases = feature[k].strip()
+    for delim in [";", ","]:
+        if delim in aliases:
+            aliases = [a.strip() for a in aliases.split(delim)]
+            break
+    if isinstance(aliases, str):
+        aliases = [aliases]
     names = []
-    if alias != "":
+    for alias in aliases:
         name = {
             "nameLanguage": "en",
             "nameTransliterated": alias,
