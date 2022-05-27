@@ -35,6 +35,7 @@ read_key_options = {
     "title": ["Title", "title", "Len"],
 }
 missing_connection_fields = []
+fault_tolerant = None
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 OPTIONAL_ARGUMENTS = [
@@ -54,6 +55,7 @@ OPTIONAL_ARGUMENTS = [
         "very verbose output (logging level == DEBUG)",
         False,
     ],
+    ["-t", "--fault_tolerant", False, "throw fewer exceptions", False],
 ]
 POSITIONAL_ARGUMENTS = [
     # each row is a list with 3 elements: name, type, help
@@ -519,7 +521,11 @@ def build_locations(feature):
             }
             locations.append(location)
         else:
-            raise ValueError('{} (title: "{}")'.format(explain_validity(s), t_text))
+            msg = '{} (title: "{}")'.format(explain_validity(s), t_text)
+            if fault_tolerant:
+                logger.error(msg)
+            else:
+                raise ValueError(msg)
     return locations
 
 
@@ -699,6 +705,10 @@ def main(**kwargs):
     main function
     """
     # logger = logging.getLogger(sys._getframe().f_code.co_name)
+
+    global fault_tolerant
+    logger.debug(kwargs.keys())
+    fault_tolerant = kwargs["fault_tolerant"]
 
     # read CSV
     in_data = read_ydea(kwargs["infile"])
