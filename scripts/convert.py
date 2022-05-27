@@ -348,8 +348,8 @@ def parse_year(raw: str):
 
 
 def build_attestations(feature):
-    start = feature["Inception"].strip()
-    end = feature["Dissolved/demolished"].strip()
+    start = feature[read_keys["inception"]].strip()
+    end = feature[read_keys["dissolution"]].strip()
     attestations = []
     if start != "" and end != "":
         start = parse_year(start)
@@ -386,36 +386,43 @@ def build_attestations(feature):
 
 
 def build_location_title(feature):
-    if feature[accuracy_key] == "dura-europos-block-l7-chen":
+    accuracy_key = read_keys["accuracy"]
+    accuracy_datum = feature[accuracy_key].strip()
+    accuracy_datum = " ".join(accuracy_datum.split())
+    if accuracy_datum == "dura-europos-block-l7-chen":
         title = "Total station location of"
-    elif feature[accuracy_key] in [
+    elif accuracy_datum in [
         "dura-europos-walls-and-towers-baird-chen",
         "dura-europos-james-chen",
     ]:
         title = "Plan location of"
-    elif feature[accuracy_key].startswith(
+    elif accuracy_datum.startswith(
         "Features related to the streets and blocks of Dura-Europos "
         "were prepared by Anne Chen in 2021 on the basis of Baird "
         "2012 Fig. 1.3."
     ):
         title = "Plan location of"
-    elif feature[accuracy_key].startswith(
+    elif accuracy_datum.startswith(
         "plan used= James 2019 Plate XXII, georectified plan in QGIS"
     ):
         title = "Plan location of"
-    elif feature[accuracy_key].startswith(
+    elif accuracy_datum.startswith(
         "Features related to the walls and towers of Dura-Europos "
         "were prepared by Anne Chen in 2020 on the basis of Baird "
         "2012 Fig. 1.3"
     ):
         title = "Plan location of"
+    elif accuracy_datum.startswith(
+        "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019 fig. 5.1"
+    ):
+        title = "Plan location of"
     else:
         raise RuntimeError(f'Unexpected accuracy value: "{feature[accuracy_key]}"')
-    return " ".join((title, feature["Title"]))
+    return " ".join((title, feature[read_keys["title"]]))
 
 
 def build_remains(feature):
-    if "traces" in feature["Description"]:
+    if "traces" in feature[read_keys["description"]]:
         return "traces"
     else:
         return "substantive"
@@ -459,30 +466,37 @@ def build_locations(feature):
             s = polygon.orient(s)
         if s.is_valid:
             accuracy_key = read_keys["accuracy"]
-            if feature[accuracy_key] in [
+            accuracy_datum = feature[accuracy_key].strip()
+            accuracy_datum = " ".join(accuracy_datum.split())
+
+            if accuracy_datum in [
                 "dura-europos-block-l7-chen",
                 "dura-europos-walls-and-towers-baird-chen",
                 "dura-europos-james-chen",
             ]:
                 accuracy_id = feature[accuracy_key]
-            elif feature[accuracy_key].startswith(
+            elif accuracy_datum.startswith(
                 "Features related to the streets and blocks of Dura-Europos "
                 "were prepared by Anne Chen in 2021 on the basis of Baird "
                 "2012 Fig. 1.3."
             ):
                 accuracy_id = "dura-europos-walls-and-towers-baird-chen"
-            elif feature[accuracy_key].startswith(
+            elif accuracy_datum.startswith(
                 "plan used= James 2019 Plate XXII, georectified plan in QGIS"
             ):
                 accuracy_id = "dura-europos-james-chen"
-            elif feature[accuracy_key].startswith(
+            elif accuracy_datum.startswith(
                 "Features related to the walls and towers of Dura-Europos "
                 "were prepared by Anne Chen in 2020 on the basis of Baird "
                 "2012 Fig. 1.3"
             ):
                 accuracy_id = "dura-europos-walls-and-towers-baird-chen"
+            elif accuracy_datum.startswith(
+                "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019 fig. 5.1"
+            ):
+                accuracy_id = "dura-europos-baird-james-chen"
             else:
-                title_key = read_keys["title"]
+                title_key = feature[read_keys["title"]]
                 raise RuntimeError(
                     f"Unexpected accuracy value ({feature[accuracy_key]}) for feature with title={feature[title_key]}"
                 )
@@ -496,7 +510,7 @@ def build_locations(feature):
                     set(
                         [
                             PLACE_TYPES[pt.lower().strip()]
-                            for pt in feature[place_type_key].split(";")
+                            for pt in feature[read_keys["place_type"]].split(";")
                             if pt.strip() != ""
                         ]
                     )
