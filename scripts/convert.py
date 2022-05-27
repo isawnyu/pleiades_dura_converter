@@ -85,6 +85,7 @@ PLACE_TYPES = {
     "q12277 arch": "arch",
     "military assembly ground? training ground?": "space-uncovered",
     "military base": "military-base",
+    "temple": "temple-2",
 }
 RX_BCE = re.compile(r"(\d+)(\-\d+)? BCE")
 RX_CE = re.compile(r"(\d+)(\-\d+)? CE")
