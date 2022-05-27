@@ -62,6 +62,7 @@ PLACE_TYPES = {
     "tower (wall)": "tower-wall",
     "city gate": "city-gate",
     "city block": "city-block",
+    "complex": "architecturalcomplex",
     "building (house?)": "building",
     "house": "townhouse",
     "synagogue": "synagogue",
