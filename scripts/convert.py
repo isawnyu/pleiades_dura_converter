@@ -458,6 +458,7 @@ def build_locations(feature):
         if s.geom_type == "Polygon":
             s = polygon.orient(s)
         if s.is_valid:
+            accuracy_key = read_keys["accuracy"]
             if feature[accuracy_key] in [
                 "dura-europos-block-l7-chen",
                 "dura-europos-walls-and-towers-baird-chen",
@@ -481,8 +482,9 @@ def build_locations(feature):
             ):
                 accuracy_id = "dura-europos-walls-and-towers-baird-chen"
             else:
+                title_key = read_keys["title"]
                 raise RuntimeError(
-                    f"Unexpected accuracy value ({feature[accuracy_key]}) for feature with title={feature['Title']}"
+                    f"Unexpected accuracy value ({feature[accuracy_key]}) for feature with title={feature[title_key]}"
                 )
             location = {
                 "title": build_location_title(feature),
