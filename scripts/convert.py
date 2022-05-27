@@ -28,6 +28,7 @@ read_key_options = {
     "aliases": ["Alias", "Aen"],
     "description": ["Description", "Den"],
     "dissolution": ["P576 dissolved/demolished", "dissolved/demolished"],
+    "geom": ["Coordinate location GEOJSON", "P625 coordinate location"],
     "inception": ["Inception", "P571 inception"],
     "place_type": ["Place type", "Place Type", "place_type"],
     "source": ["Source", "source"],
@@ -421,8 +422,10 @@ def build_remains(feature):
 
 def build_locations(feature):
     locations = []
-    t_text = titleize(feature[title_key].strip())
-    g_text = feature["Coordinate location GEOJSON"].strip()
+    k = read_keys["title"]
+    t_text = titleize(feature[k].strip())
+    k = read_keys["geom"]
+    g_text = feature[k].strip()
     if g_text == "":
         g_data = list()
         logger.warning(f'Skipping empty geometry for "{t_text}".')
@@ -577,9 +580,8 @@ def build_connections(feature, places={}):
 
 def build_references(feature):
     references = []
-    sources = [
-        s.strip() for s in feature[source_key].strip().split(";") if s.strip() != ""
-    ]
+    k = read_keys["source"]
+    sources = [s.strip() for s in feature[k].strip().split(";") if s.strip() != ""]
     failures = []
     for source in sources:
         reference = None
