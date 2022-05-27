@@ -519,7 +519,7 @@ def build_locations(feature):
             }
             locations.append(location)
         else:
-            raise ValueError('{} (title: "{}")'.format(explain_validity(s), t))
+            raise ValueError('{} (title: "{}")'.format(explain_validity(s), t_text))
     return locations
 
 
