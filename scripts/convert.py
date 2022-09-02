@@ -89,6 +89,7 @@ PLACE_TYPES = {
     "military assembly ground? training ground?": "space-uncovered",
     "military base": "military-base",
     "temple": "temple-2",
+    "townhouse": "townhouse",
 }
 RX_BCE = re.compile(r"(\d+)(\-\d+)? BCE")
 RX_CE = re.compile(r"(\d+)(\-\d+)? CE")
@@ -416,7 +417,7 @@ def build_location_title(feature):
     ):
         title = "Plan location of"
     elif accuracy_datum.startswith(
-        "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019 fig. 5.1"
+        "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019"
     ):
         title = "Plan location of"
     else:
@@ -495,14 +496,15 @@ def build_locations(feature):
             ):
                 accuracy_id = "dura-europos-walls-and-towers-baird-chen"
             elif accuracy_datum.startswith(
-                "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019 fig. 5.1"
+                "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019"
             ):
                 accuracy_id = "dura-europos-baird-james-chen"
             else:
-                title_key = feature[read_keys["title"]]
-                raise RuntimeError(
-                    f"Unexpected accuracy value ({feature[accuracy_key]}) for feature with title={feature[title_key]}"
-                )
+                msg = f"Unexpected accuracy value ({feature[accuracy_key]}) for feature with title={feature[read_keys['title']]}"
+                if fault_tolerant:
+                    logger.error(msg)
+                else:
+                    raise RuntimeError(msg)
             location = {
                 "title": build_location_title(feature),
                 "geometry": mapping(s),
