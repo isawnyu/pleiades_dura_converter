@@ -468,6 +468,8 @@ def build_locations(feature):
             continue
         if s.geom_type == "Polygon":
             s = polygon.orient(s)
+        if not s.is_valid:
+            s = s.buffer(0)
         if s.is_valid:
             accuracy_key = read_keys["accuracy"]
             accuracy_datum = feature[accuracy_key].strip()
