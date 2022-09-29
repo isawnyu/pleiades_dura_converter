@@ -533,12 +533,26 @@ def build_locations(feature):
                 accuracy_id = "dura-europos-baird-chen-yuag-negative-1938-5999-5275-34"
             elif "1938.5999.5275'35" in accuracy_datum:
                 accuracy_id = "dura-europos-baird-chen-yuag-negative-1938-5999-5275-35"
+            elif "1938.5999.5274'06" in accuracy_datum:
+                accuracy_id = "dura-europos-baird-chen-yuag-negative-1938-5999-527406"
             elif "James 2019 pl. XXII" in accuracy_datum:
                 accuracy_id = "dura-europos-chen-james-plate-xxii"
-            elif accuracy_datum.startswith(
-                "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of Preliminary Report v. 3, pl. IV and Baird 2012 fig. 1.4"
+            elif (
+                "Baird 2012, fig. 1.4" in accuracy_datum
+                and "James 2019 fig. 7.1" in accuracy_datum
             ):
-                accuracy_id = ""
+                accuracy_id = "dura-europos-baird-chen-james-temple-of-zeus-theos"
+            elif (
+                "Baird 2008 totalstation" in accuracy_datum
+                and "Preliminary Report v. 3, pl. IV" in accuracy_datum
+                and "Baird 2012 fig. 1.4" in accuracy_datum
+            ):
+                accuracy_id = "dura-europos-baird-chen-preliminary-report-v-3-pl-iv"
+            elif (
+                "Baird 2008 totalstation" in accuracy_datum
+                and "James 2019 fig. 7.1" in accuracy_datum
+            ):
+                accuracy_id = "dura-europos-baird-chen-james-2012-fig-7-1"
             else:
                 msg = f"Unexpected accuracy value ({accuracy_datum}) for feature with title={feature[read_keys['title']]}"
                 if fault_tolerant:
