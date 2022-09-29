@@ -90,6 +90,7 @@ PLACE_TYPES = {
     "military base": "military-base",
     "temple": "temple-2",
     "townhouse": "townhouse",
+    "church": "church-2",
 }
 RX_BCE = re.compile(r"(\d+)(\-\d+)? BCE")
 RX_CE = re.compile(r"(\d+)(\-\d+)? CE")
@@ -204,6 +205,25 @@ REFERENCES = {
         "bibliographic_uri": "https://www.zotero.org/groups/2533/items/5TB75YJB",
         "access_uri": "http://www.worldcat.org/oclc/466092686",
         "identifier": "978-2-7053-0356-3",
+    },
+    "Peppard 2016": {
+        "formatted_citation": (
+            "Peppard, Michael. The World’s Oldest Church: Bible, Art, and Ritual "
+            "at Dura-Europos, Syria. Synkrisis. New Haven: Yale University Press, "
+            "2016."
+        ),
+        "bibliographic_uri": "https://www.zotero.org/groups/2533/items/9XXNNKFI",
+        "access_uri": "http://www.worldcat.org/oclc/1295968857",
+        "identifier": "978-0-300-21651-6",
+    },
+    "Kraeling 1967": {
+        "formatted_citation": (
+            "Kraeling, Carl Hermann and Charles Bradford Welles. The Excavations "
+            "at Dura-Europos Final Report VIII. Part II. New Haven: Dura-Europos "
+            "Publications, 1967."
+        ),
+        "bibliographic_uri": "https://www.zotero.org/groups/2533/items/IR2MDI33",
+        "access_uri": "http://www.worldcat.org/oclc/490392414",
     },
 }
 CONNECTION_TARGETS = {
@@ -343,8 +363,12 @@ def parse_year(raw: str):
     if m is None:
         m = RX_CE.search(raw)
         if m is None:
-            raise ValueError('could not parse year from string "{}"'.format(raw))
-        cooked = int(m.group(1))
+            if raw == "3rd century":
+                cooked = 300
+            else:
+                raise ValueError('could not parse year from string "{}"'.format(raw))
+        else:
+            cooked = int(m.group(1))
     else:
         cooked = -1 * int(m.group(1))
     # print('parse_year: {}'.format(cooked))
@@ -420,6 +444,8 @@ def build_location_title(feature):
         "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019"
     ):
         title = "Plan location of"
+    elif "y713":
+        title = "Total Station and Photogrammetric Location of"
     else:
         raise RuntimeError(f'Unexpected accuracy value: "{feature[accuracy_key]}"')
     return " ".join((title, feature[read_keys["title"]]))
@@ -501,8 +527,20 @@ def build_locations(feature):
                 "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019"
             ):
                 accuracy_id = "dura-europos-baird-james-chen"
+            elif "y713" in accuracy_datum:
+                accuracy_id = "dura-europos-baird-chen-yuag-negative-y713"
+            elif "1938.5999.5275'34" in accuracy_datum:
+                accuracy_id = "dura-europos-baird-chen-yuag-negative-1938-5999-5275-34"
+            elif "1938.5999.5275'35" in accuracy_datum:
+                accuracy_id = "dura-europos-baird-chen-yuag-negative-1938-5999-5275-35"
+            elif "James 2019 pl. XXII" in accuracy_datum:
+                accuracy_id = "dura-europos-chen-james-plate-xxii"
+            elif accuracy_datum.startswith(
+                "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of Preliminary Report v. 3, pl. IV and Baird 2012 fig. 1.4"
+            ):
+                accuracy_id = ""
             else:
-                msg = f"Unexpected accuracy value ({feature[accuracy_key]}) for feature with title={feature[read_keys['title']]}"
+                msg = f"Unexpected accuracy value ({accuracy_datum}) for feature with title={feature[read_keys['title']]}"
                 if fault_tolerant:
                     logger.error(msg)
                 else:
