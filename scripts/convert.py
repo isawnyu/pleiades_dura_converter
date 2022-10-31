@@ -91,6 +91,9 @@ PLACE_TYPES = {
     "temple": "temple-2",
     "townhouse": "townhouse",
     "church": "church-2",
+    "siege-ramp": "siege-ramp",
+    "siege-mine": "siege-mine",
+    "barracks": "barracks",
 }
 RX_BCE = re.compile(r"(\d+)(\-\d+)? BCE")
 RX_CE = re.compile(r"(\d+)(\-\d+)? CE")
@@ -147,6 +150,16 @@ REFERENCES = {
         "bibliographic_uri": "https://www.zotero.org/groups/2533/items/QL32DCUE",
         "access_uri": "http://www.worldcat.org/oclc/1034731631",
         "identifier": "978-1-4725-2365-5; 978-1-4725-2673-1",
+    },
+    "James 2011": {
+        "formatted_citation": (
+            "James, Simon. “Stratagems, Combat, and ‘Chemical Warfare’ in the Siege Mines "
+            "of Dura-Europos.” American Journal of Archaeology 115, no. 1 (2011): 69–101. "
+            "https://doi.org/10.3764/aja.115.1.0069."
+        ),
+        "bibliographic_uri": "https://www.zotero.org/groups/2533/items/HE28YUIP",
+        "access_uri": "https://www.jstor.org/stable/10.3764/aja.115.1.0069",
+        "identifier": "10.3764/aja.115.1.0069; 0002-9114",
     },
     "James 2019": {
         "citation_detail": "",
@@ -224,6 +237,19 @@ REFERENCES = {
         ),
         "bibliographic_uri": "https://www.zotero.org/groups/2533/items/IR2MDI33",
         "access_uri": "http://www.worldcat.org/oclc/490392414",
+    },
+    "James 2007": {
+        "formatted_citation": (
+            "James, Simon. “New Light on the Roman Military Base at Dura-Europos: "
+            "Interim Report on a Pilot Season of Fieldwork in 2005.” In The Late "
+            "Roman Army in the near East from Diocletian to the Arab Conquest : "
+            "Proceedings of a Colloquium Held at Potenza, Acerenza and Matera, "
+            "Italy / May 2005, edited by A. S. Lewin and P. Pellegrini, 29–47. BAR, "
+            "International Series 1717. Oxford: Archaeopress, 2007."
+        ),
+        "bibliographic_uri": "https://www.zotero.org/groups/2533/items/32ATHVXS",
+        "access_uri": "http://www.worldcat.org/oclc/470640847",
+        "identifier": "978-1-4073-0161-7",
     },
 }
 CONNECTION_TARGETS = {
@@ -517,10 +543,13 @@ def build_locations(feature):
                 "plan used= James 2019 Plate XXII, georectified plan in QGIS"
             ):
                 accuracy_id = "dura-europos-james-chen"
-            elif accuracy_datum.startswith(
-                "Features related to the walls and towers of Dura-Europos "
-                "were prepared by Anne Chen in 2020 on the basis of Baird "
-                "2012 Fig. 1.3"
+            elif (
+                accuracy_datum.startswith(
+                    "Features related to the walls and towers of Dura-Europos "
+                    "were prepared by Anne Chen in 2020 on the basis of Baird "
+                    "2012 Fig. 1.3"
+                )
+                or "Baird 2012 fig. 1.3" in accuracy_datum
             ):
                 accuracy_id = "dura-europos-walls-and-towers-baird-chen"
             elif accuracy_datum.startswith(
@@ -553,6 +582,13 @@ def build_locations(feature):
                 and "James 2019 fig. 7.1" in accuracy_datum
             ):
                 accuracy_id = "dura-europos-baird-chen-james-2012-fig-7-1"
+            elif "James, 2011, Figure 4" in accuracy_datum:
+                accuracy_id = "chen-james-2011-fig-4"
+            elif (
+                "Baird 2008 totalstation" in accuracy_datum
+                and "James 2019 fig. 5.1" in accuracy_datum
+            ):
+                accuracy_id = "dura-europos-chen-baird-james-2019-fig-5.1"
             else:
                 msg = f"Unexpected accuracy value ({accuracy_datum}) for feature with title={feature[read_keys['title']]}"
                 if fault_tolerant:
