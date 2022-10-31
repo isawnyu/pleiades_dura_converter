@@ -140,3 +140,5 @@ test_template_3.py
 cover
 ~$*.docx
 script_template_3.py
+.direnv
+.envrc
