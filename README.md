@@ -1,6 +1,6 @@
 # config
 
-python virtual environment
+python virtual environment (I'm using 3.10.1, installed through pyenv (via brew) and then the virtual environment set up using direnv (also via brew), all under MacOS 12.6.1).
 
 do pip install -U pip then
 try just installing with `pip - requirements_dev.txt`, but if there's 5 bazillion shapely errors then you'll need to:
@@ -19,9 +19,9 @@ pip install -r requirements_dev.txt
 python scripts/convert.py -v  ../data/units-blocks-streets-tre-20211102.csv ~/scratch/foo.json
 ```
 
-# uploading
+# uploading (for Pleiades sysadmin only)
 
-Use scripts/place_maker.py.
+Use scripts/place_maker.py, which is here: https://github.com/isawnyu/pleiades3-buildout/blob/master/scripts/place_maker.py
 
 ```bash
 ssh isaw1
