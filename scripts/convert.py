@@ -33,6 +33,12 @@ read_key_options = {
     "place_type": ["Place type", "Place Type", "place_type"],
     "source": ["Source", "source"],
     "title": ["Title", "title", "Len"],
+    "location": ["Location", "P361 Part of Dura-Europos"],
+    "part_of": [
+        "Part of (larger organizational unit at D-E)",
+        "P361 Part of (larger organizational unit at D-E)",
+    ],
+    "succeeds": ["Structure replaces", "P1398 structure replaces"],
 }
 missing_connection_fields = []
 fault_tolerant = None
@@ -334,6 +340,7 @@ def read_ydea(fn: str):
             raise RuntimeError(
                 f"Cannot find key variant for {read_k} (options: {options}) in {fieldnames_set}."
             )
+    logger.debug(f"read_keys: {pformat(read_keys, indent=4)}")
 
     return r["content"]
 
@@ -608,24 +615,24 @@ def parse_connections(target_string, ctype=None):
 def build_connections(feature, places={}):
     connections = []
     categories = [
-        ("Location", "at"),
-        ("Part of (larger organizational unit at D-E)", "part_of_physical"),
-        ("Structure replaces", "succeeds"),
-        ("Other connections", None),
+        ("location", "at"),
+        ("part_of", "part_of_physical"),
+        ("succeeds", "succeeds"),
     ]
     for field_name, connection_type in categories:
+        k = read_keys[field_name]
         try:
-            feature[field_name]
+            feature[k]
         except KeyError:
             global missing_connection_fields
-            if field_name not in missing_connection_fields:
+            if k not in missing_connection_fields:
                 missing_connection_fields.append(field_name)
                 logger.warning(
                     f'Expected connection fieldname "{field_name}" is missing from input data.'
                 )
 
         try:
-            connections.extend(parse_connections(feature[field_name], connection_type))
+            connections.extend(parse_connections(feature[k], connection_type))
         except KeyError:
             pass
     if connections:
@@ -644,7 +651,7 @@ def build_connections(feature, places={}):
                 keys = list(places.keys())
                 keys.sort()
                 keys = "".join([f"\t{k}\n" for k in keys])
-                t = titleize(feature["Title"])
+                t = titleize(feature[read_keys["title"]])
                 raise RuntimeError(
                     f'Failed connection title match for {t}: "{target_string}".\nAvailable keys:\n{keys}.'
                 )
