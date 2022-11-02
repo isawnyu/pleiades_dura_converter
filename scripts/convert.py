@@ -94,6 +94,9 @@ PLACE_TYPES = {
     "siege-ramp": "siege-ramp",
     "siege-mine": "siege-mine",
     "barracks": "barracks",
+    "bath": "bath",
+    "platform": "platform",
+    "sanctuary": "sanctuary",
 }
 RX_BCE = re.compile(r"(\d+)(\-\d+)? BCE")
 RX_CE = re.compile(r"(\d+)(\-\d+)? CE")
@@ -150,6 +153,14 @@ REFERENCES = {
         "bibliographic_uri": "https://www.zotero.org/groups/2533/items/QL32DCUE",
         "access_uri": "http://www.worldcat.org/oclc/1034731631",
         "identifier": "978-1-4725-2365-5; 978-1-4725-2673-1",
+    },
+    "Cumont 1926": {
+        "formatted_citation": (
+            "Cumont, Franz. Fouilles de Doura-Europos (1922-1923). Bibliothèque "
+            "archéologique et historique 9. Paris: P. Geuthner, 1926."
+        ),
+        "bibliographic_uri": "https://www.zotero.org/groups/2533/items/WYGADTF8",
+        "access_uri": "http://www.worldcat.org/oclc/846262",
     },
     "James 2011": {
         "formatted_citation": (
@@ -391,6 +402,8 @@ def parse_year(raw: str):
         if m is None:
             if raw == "3rd century":
                 cooked = 300
+            elif raw == "after late second c. CE":
+                cooked = 300
             else:
                 raise ValueError('could not parse year from string "{}"'.format(raw))
         else:
@@ -533,68 +546,14 @@ def build_locations(feature):
                 "dura-europos-james-chen",
             ]:
                 accuracy_id = feature[accuracy_key]
-            elif accuracy_datum.startswith(
-                "Features related to the streets and blocks of Dura-Europos "
-                "were prepared by Anne Chen in 2021 on the basis of Baird "
-                "2012 Fig. 1.3."
-            ):
-                accuracy_id = "dura-europos-walls-and-towers-baird-chen"
-            elif accuracy_datum.startswith(
-                "plan used= James 2019 Plate XXII, georectified plan in QGIS"
-            ):
-                accuracy_id = "dura-europos-james-chen"
-            elif (
-                accuracy_datum.startswith(
-                    "Features related to the walls and towers of Dura-Europos "
-                    "were prepared by Anne Chen in 2020 on the basis of Baird "
-                    "2012 Fig. 1.3"
-                )
-                or "Baird 2012 fig. 1.3" in accuracy_datum
-            ):
-                accuracy_id = "dura-europos-walls-and-towers-baird-chen"
-            elif accuracy_datum.startswith(
-                "coordinates based on Baird 2008 totalstation data supplemented by georeferenced version of James 2019"
-            ):
-                accuracy_id = "dura-europos-baird-james-chen"
-            elif "y713" in accuracy_datum:
-                accuracy_id = "dura-europos-baird-chen-yuag-negative-y713"
-            elif "1938.5999.5275'34" in accuracy_datum:
-                accuracy_id = "dura-europos-baird-chen-yuag-negative-1938-5999-5275-34"
-            elif "1938.5999.5275'35" in accuracy_datum:
-                accuracy_id = "dura-europos-baird-chen-yuag-negative-1938-5999-5275-35"
-            elif "1938.5999.5274'06" in accuracy_datum:
-                accuracy_id = "dura-europos-baird-chen-yuag-negative-1938-5999-527406"
-            elif "James 2019 pl. XXII" in accuracy_datum:
-                accuracy_id = "dura-europos-chen-james-plate-xxii"
-            elif (
-                "Baird 2012, fig. 1.4" in accuracy_datum
-                and "James 2019 fig. 7.1" in accuracy_datum
-            ):
-                accuracy_id = "dura-europos-baird-chen-james-temple-of-zeus-theos"
-            elif (
-                "Baird 2008 totalstation" in accuracy_datum
-                and "Preliminary Report v. 3, pl. IV" in accuracy_datum
-                and "Baird 2012 fig. 1.4" in accuracy_datum
-            ):
-                accuracy_id = "dura-europos-baird-chen-preliminary-report-v-3-pl-iv"
-            elif (
-                "Baird 2008 totalstation" in accuracy_datum
-                and "James 2019 fig. 7.1" in accuracy_datum
-            ):
-                accuracy_id = "dura-europos-baird-chen-james-2012-fig-7-1"
-            elif "James, 2011, Figure 4" in accuracy_datum:
-                accuracy_id = "chen-james-2011-fig-4"
-            elif (
-                "Baird 2008 totalstation" in accuracy_datum
-                and "James 2019 fig. 5.1" in accuracy_datum
-            ):
-                accuracy_id = "dura-europos-chen-baird-james-2019-fig-5.1"
             else:
-                msg = f"Unexpected accuracy value ({accuracy_datum}) for feature with title={feature[read_keys['title']]}"
-                if fault_tolerant:
-                    logger.error(msg)
-                else:
-                    raise RuntimeError(msg)
+                accuracy_id = "ydea-chen-nominal-5m"
+            # else:
+            #     msg = f"Unexpected accuracy value ({accuracy_datum}) for feature with title={feature[read_keys['title']]}"
+            #     if fault_tolerant:
+            #         logger.error(msg)
+            #     else:
+            #         raise RuntimeError(msg)
             location = {
                 "title": build_location_title(feature),
                 "geometry": mapping(s),
@@ -734,7 +693,7 @@ def mine_references(sources: list):
         for rx in RX_REFS:
             for m in rx.finditer(source):
                 short_title = m.group(1)
-                print(short_title)
+                # print(short_title)
                 removals = ["et al.", ".", "(", ")", ", Simon"]
                 for removal in removals:
                     short_title = short_title.replace(removal, "")
